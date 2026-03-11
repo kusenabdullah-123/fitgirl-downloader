@@ -178,16 +178,31 @@ function App() {
       setProcessingIndex(i);
       try {
         const bp = browserPath.trim() || null;
-        await invoke("process_link", { url: list[i].url, browserPath: bp });
-
-        // Setelah selesai (event "done" sudah di-emit oleh Rust), mark downloaded
-        await invoke("mark_downloaded", { url: list[i].url });
-
-        // Update state lokal
-        setSavedLinks(prev => {
-          const updated = prev.map((l, idx) => idx === i ? { ...l, downloaded: true } : l);
-          return updated;
+        
+        // Tunggu event "done" atau "error" dari proses background
+        await new Promise<void>((resolve, reject) => {
+          let unlistenFn: (() => void) | null = null;
+          
+          listen<DownloadProgress>("download-progress", (event) => {
+            if (event.payload.status === "done") {
+              if (unlistenFn) unlistenFn();
+              resolve();
+            } else if (event.payload.status === "error") {
+              if (unlistenFn) unlistenFn();
+              reject(new Error(event.payload.message || "Gagal mengunduh file"));
+            }
+          }).then((fn) => {
+            unlistenFn = fn;
+            // Panggil API SETELAH kita siap mendengar jawabannya
+            invoke("process_link", { url: list[i].url, browserPath: bp }).catch(e => {
+              if (unlistenFn) unlistenFn();
+              reject(e);
+            });
+          });
         });
+
+        await invoke("mark_downloaded", { url: list[i].url });
+        setSavedLinks(prev => prev.map((l, idx) => idx === i ? { ...l, downloaded: true } : l));
       } catch (e) {
         console.error(`Error pada link ${i}:`, e);
         // Lanjutkan ke link berikutnya meski ada error

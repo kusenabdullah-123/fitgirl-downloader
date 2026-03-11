@@ -174,7 +174,7 @@ input::placeholder {
 .col-panel {
   /* Fixed height agar layout tidak bergeser/menyusut saat list kosong */
   min-height: 800px;
-  min-width: 800px;
+  min-width: 350px;
   display: flex;
   flex-direction: column;
 }

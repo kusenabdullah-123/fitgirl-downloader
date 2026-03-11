@@ -114,6 +114,14 @@ fn create_browser(
         std::ffi::OsStr::new("--disable-gpu"),
         std::ffi::OsStr::new("--disable-software-rasterizer"),
         std::ffi::OsStr::new("--mute-audio"),
+        std::ffi::OsStr::new("--disable-dev-shm-usage"),
+        std::ffi::OsStr::new("--disable-extensions"),
+        std::ffi::OsStr::new("--disable-background-networking"),
+        std::ffi::OsStr::new("--disable-background-timer-throttling"),
+        std::ffi::OsStr::new("--disable-backgrounding-occluded-windows"),
+        std::ffi::OsStr::new("--disable-breakpad"),
+        std::ffi::OsStr::new("--no-sandbox"),
+        std::ffi::OsStr::new("--disable-setuid-sandbox"),
     ]);
 
     if let Some(path) = browser_path {
@@ -137,7 +145,7 @@ fn poll_js_bool(
     js: &str,
     max_seconds: u64,
 ) -> bool {
-    for i in 0..max_seconds {
+    for _ in 0..max_seconds {
         if let Ok(res) = tab.evaluate(js, false) {
             if res
                 .value
@@ -145,7 +153,7 @@ fn poll_js_bool(
                 .as_bool()
                 .unwrap_or(false)
             {
-                println!("  [OK] JS succeed setelah {}s", i);
+
                 return true;
             }
         }
@@ -229,14 +237,14 @@ async fn process_link(app_handle: tauri::AppHandle, url: String, browser_path: O
     tokio::task::spawn_blocking(move || {
         let app_handle = app_handle_spawn;
         // Set false saat development agar kelihatan di layar, true saat produksi
-        let is_headless = false;
+        let is_headless = true;
 
         let browser = create_browser(&browser_path, is_headless)?;
         let tab = browser
             .new_tab()
             .map_err(|e| format!("Failed to open new tab: {}", e))?;
 
-        println!("[1/3] Navigasi ke: {}", url);
+
         tab.navigate_to(&url)
             .map_err(|e| format!("Failed to navigate: {}", e))?;
 
@@ -244,7 +252,7 @@ async fn process_link(app_handle: tauri::AppHandle, url: String, browser_path: O
         // TAHAP 1: Klik tombol "Continue to Download" (#method_free)
         // Gunakan form.submit() agar iklan popup tidak bisa mengintervensi
         // ─────────────────────────────────────────────────────
-        println!("[1/3] Menunggu tombol #method_free...");
+
 
         let js_step1 = r#"
             (function() {
@@ -290,14 +298,14 @@ async fn process_link(app_handle: tauri::AppHandle, url: String, browser_path: O
         }
 
         // Tunggu halaman Datanodes load setelah form submit
-        println!("[1/3] Submit berhasil, menunggu halaman berikutnya...");
+
         std::thread::sleep(std::time::Duration::from_secs(4));
 
         // ─────────────────────────────────────────────────────
         // INJECT FETCH/XHR HOOK sebelum klik apapun di halaman Datanodes
         // Ini HARUS dilakukan sebelum tombol Download diklik agar interceptor siap
         // ─────────────────────────────────────────────────────
-        println!("[2/3] Injeksi fetch hook...");
+
         let js_hook = r#"
             (function() {
                 if (window._fitgirlHooked) return;
@@ -347,7 +355,7 @@ async fn process_link(app_handle: tauri::AppHandle, url: String, browser_path: O
         // TAHAP 2: Cari & klik tombol "Download" (button.py-3)
         // Abaikan jika disabled (timer Vue countdown), tunggu sampai aktif
         // ─────────────────────────────────────────────────────
-        println!("[2/3] Menunggu tombol Download (py-3)...");
+
 
         let js_step2 = r#"
             (function() {
@@ -387,14 +395,14 @@ async fn process_link(app_handle: tauri::AppHandle, url: String, browser_path: O
         }
 
         // Tunggu timer countdown Datanodes (~6 detik) + sedikit buffer
-        println!("[2/3] Klik berhasil, menunggu timer countdown Datanodes (~8 detik)...");
+
         std::thread::sleep(std::time::Duration::from_secs(8));
 
         // ─────────────────────────────────────────────────────
         // TAHAP 3: Setelah timer selesai, tombol berubah menjadi "Continue"
         // Klik — fetch hook akan menangkap URL download dari response JSON
         // ─────────────────────────────────────────────────────
-        println!("[3/3] Menunggu tombol Continue (py-3) aktif...");
+
 
         let js_step3 = r#"
             (function() {
@@ -442,7 +450,7 @@ async fn process_link(app_handle: tauri::AppHandle, url: String, browser_path: O
         // ─────────────────────────────────────────────────────
         // Tunggu URL dari hook (fetch/XHR mencuri URL download asli)
         // ─────────────────────────────────────────────────────
-        println!("[3/3] Menunggu URL dari fetch hook...");
+
         let final_url = match poll_js_string(&tab, "window._finalUrl || '';", 30) {
             Some(u) if !u.is_empty() => u,
             _ => {
@@ -466,7 +474,7 @@ async fn process_link(app_handle: tauri::AppHandle, url: String, browser_path: O
             }
         }
 
-        println!("[OK] URL Ditangkap: {}", &final_url[..final_url.len().min(80)]);
+
 
         // ─────────────────────────────────────────────────────
         // Download via reqwest — stream to disk + emit real-time progress events
@@ -493,12 +501,12 @@ async fn process_link(app_handle: tauri::AppHandle, url: String, browser_path: O
                 req = req.header(reqwest::header::COOKIE, &cookie_hdr);
             }
 
-            println!("⬇ Memulai download dari: {}", &dl_url[..dl_url.len().min(80)]);
+
 
             let response = match req.send().await {
                 Ok(r)  => r,
                 Err(e) => {
-                    println!("❌ Gagal request: {}", e);
+
                     let _ = app_handle.emit("download-progress", serde_json::json!({
                         "status": "error", "message": e.to_string()
                     }));
@@ -530,12 +538,12 @@ async fn process_link(app_handle: tauri::AppHandle, url: String, browser_path: O
             if file_name.is_empty() { file_name = "fitgirl_download.rar".to_string(); }
 
             let dest = dl_dir.join(&file_name);
-            println!("💾 Menyimpan ke: {:?}", dest);
+
 
             let mut file = match std::fs::File::create(&dest) {
                 Ok(f)  => f,
                 Err(e) => {
-                    println!("❌ Gagal buat file: {}", e);
+
                     let _ = app_handle.emit("download-progress", serde_json::json!({
                         "status": "error", "message": e.to_string()
                     }));
@@ -583,8 +591,7 @@ async fn process_link(app_handle: tauri::AppHandle, url: String, browser_path: O
                         "speed_kbps": speed_kbps,
                     }));
 
-                    println!("📈 {:.1} MB / {:.1} MB ({:.1}%) @ {:.0} KB/s — {}",
-                        dl_mb, total_mb, percent, speed_kbps, file_name);
+
 
                     interval_bytes = 0;
                     last_emit      = std::time::Instant::now();
@@ -592,7 +599,7 @@ async fn process_link(app_handle: tauri::AppHandle, url: String, browser_path: O
             }
 
             let dl_mb = downloaded as f64 / 1_048_576.0;
-            println!("✅ Selesai ({:.2} MB): {:?}", dl_mb, dest);
+
 
             let _ = app_handle.emit("download-progress", serde_json::json!({
                 "status": "done",
