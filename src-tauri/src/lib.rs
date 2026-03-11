@@ -3,8 +3,7 @@ use std::path::PathBuf;
 use tauri::Emitter;
 
 fn get_config_path() -> PathBuf {
-    let mut path = PathBuf::from(std::env::var("HOME").unwrap_or_else(|_| String::from(".")));
-    path.push(".config");
+    let mut path = dirs::config_dir().unwrap_or_else(|| PathBuf::from("."));
     path.push("fitgirl-downloader");
     let _ = fs::create_dir_all(&path);
     path.push("config.json");
@@ -21,6 +20,7 @@ struct SavedLink {
 #[derive(serde::Serialize, serde::Deserialize, Default)]
 struct AppConfig {
     browser_path: Option<String>,
+    download_dir: Option<String>,
     links: Option<Vec<SavedLink>>,
 }
 
@@ -37,9 +37,9 @@ fn load_config() -> Result<AppConfig, String> {
 }
 
 #[tauri::command]
-fn save_config(browser_path: Option<String>) -> Result<(), String> {
+fn save_config(browser_path: Option<String>, download_dir: Option<String>) -> Result<(), String> {
     let path = get_config_path();
-    // Preserve existing links when saving browser path
+    // Preserve existing links when saving config
     let existing_links = if path.exists() {
         fs::read_to_string(&path)
             .ok()
@@ -48,7 +48,7 @@ fn save_config(browser_path: Option<String>) -> Result<(), String> {
     } else {
         None
     };
-    let config = AppConfig { browser_path, links: existing_links };
+    let config = AppConfig { browser_path, download_dir, links: existing_links };
     let json = serde_json::to_string_pretty(&config).map_err(|e| e.to_string())?;
     fs::write(path, json).map_err(|e| e.to_string())?;
     Ok(())
@@ -57,15 +57,16 @@ fn save_config(browser_path: Option<String>) -> Result<(), String> {
 #[tauri::command]
 fn save_links(links: Vec<SavedLink>) -> Result<(), String> {
     let path = get_config_path();
-    let browser_path = if path.exists() {
-        fs::read_to_string(&path)
-            .ok()
-            .and_then(|c| serde_json::from_str::<AppConfig>(&c).ok())
-            .and_then(|c| c.browser_path)
+    let (browser_path, download_dir) = if path.exists() {
+        if let Some(c) = fs::read_to_string(&path).ok().and_then(|c| serde_json::from_str::<AppConfig>(&c).ok()) {
+            (c.browser_path, c.download_dir)
+        } else {
+            (None, None)
+        }
     } else {
-        None
+        (None, None)
     };
-    let config = AppConfig { browser_path, links: Some(links) };
+    let config = AppConfig { browser_path, download_dir, links: Some(links) };
     let json = serde_json::to_string_pretty(&config).map_err(|e| e.to_string())?;
     fs::write(path, json).map_err(|e| e.to_string())?;
     Ok(())
@@ -232,7 +233,7 @@ async fn scrape_links(url: String, browser_path: Option<String>) -> Result<Strin
 //  PROCESS LINK (Datanodes auto-download)
 // ================================
 #[tauri::command]
-async fn process_link(app_handle: tauri::AppHandle, url: String, browser_path: Option<String>) -> Result<String, String> {
+async fn process_link(app_handle: tauri::AppHandle, url: String, browser_path: Option<String>, download_dir: Option<String>) -> Result<String, String> {
     let app_handle_spawn = app_handle.clone();
     tokio::task::spawn_blocking(move || {
         let app_handle = app_handle_spawn;
@@ -483,12 +484,18 @@ async fn process_link(app_handle: tauri::AppHandle, url: String, browser_path: O
         let dl_url     = final_url.clone();
         let cookie_hdr = cookie_str.clone();
         let app_handle = app_handle.clone();
+        let download_dir = download_dir.clone();
 
         tokio::spawn(async move {
-            let home = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
-            let dl_dir = std::path::PathBuf::from(home)
-                .join("Downloads")
-                .join("Fitgirl_Downloads");
+            let dl_dir = if let Some(dir) = download_dir {
+                if dir.trim().is_empty() {
+                    dirs::download_dir().unwrap_or_else(|| std::path::PathBuf::from(".")).join("Fitgirl_Downloads")
+                } else {
+                    std::path::PathBuf::from(dir.trim())
+                }
+            } else {
+                dirs::download_dir().unwrap_or_else(|| std::path::PathBuf::from(".")).join("Fitgirl_Downloads")
+            };
             let _ = std::fs::create_dir_all(&dl_dir);
 
             let client = reqwest::Client::builder()
@@ -622,6 +629,7 @@ async fn process_link(app_handle: tauri::AppHandle, url: String, browser_path: O
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
         .invoke_handler(tauri::generate_handler![
             scrape_links, load_config, save_config,

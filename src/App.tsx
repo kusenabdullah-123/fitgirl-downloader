@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "preact/hooks";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
+import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import "./App.css";
 
 interface FetchedLink {
@@ -33,6 +34,7 @@ function formatSpeed(kbps: number): string {
 function App() {
   const [url, setUrl] = useState("");
   const [browserPath, setBrowserPath] = useState("");
+  const [downloadDir, setDownloadDir] = useState("");
   const [fetchedLinks, setFetchedLinks] = useState<FetchedLink[]>([]);
   const [savedLinks, setSavedLinks] = useState<SavedLink[]>([]);
   const [status, setStatus] = useState("");
@@ -50,6 +52,7 @@ function App() {
   useEffect(() => {
     invoke("load_config").then((res: any) => {
       if (res?.browser_path) setBrowserPath(res.browser_path);
+      if (res?.download_dir) setDownloadDir(res.download_dir);
     }).catch(console.error);
     refreshSavedList();
 
@@ -83,7 +86,8 @@ function App() {
 
     try {
       const bp = browserPath.trim() || null;
-      await invoke("save_config", { browserPath: bp });
+      const dd = downloadDir.trim() || null;
+      await invoke("save_config", { browserPath: bp, downloadDir: dd });
 
       const resp = await invoke("scrape_links", { url, browserPath: bp });
       const parsed: { href: string; text: string }[] = JSON.parse(resp as string);
@@ -147,7 +151,8 @@ function App() {
     setProcessingIndex(idx);
     try {
       const bp = browserPath.trim() || null;
-      const resp = await invoke<string>("process_link", { url: link.url, browserPath: bp });
+      const dd = downloadDir.trim() || null;
+      const resp = await invoke<string>("process_link", { url: link.url, browserPath: bp, downloadDir: dd });
 
       const updated = savedLinks.map((l, i) => i === idx ? { ...l, downloaded: true } : l);
       setSavedLinks(updated);
@@ -178,6 +183,7 @@ function App() {
       setProcessingIndex(i);
       try {
         const bp = browserPath.trim() || null;
+        const dd = downloadDir.trim() || null;
         
         // Tunggu event "done" atau "error" dari proses background
         await new Promise<void>((resolve, reject) => {
@@ -194,7 +200,7 @@ function App() {
           }).then((fn) => {
             unlistenFn = fn;
             // Panggil API SETELAH kita siap mendengar jawabannya
-            invoke("process_link", { url: list[i].url, browserPath: bp }).catch(e => {
+            invoke("process_link", { url: list[i].url, browserPath: bp, downloadDir: dd }).catch(e => {
               if (unlistenFn) unlistenFn();
               reject(e);
             });
@@ -261,17 +267,54 @@ function App() {
               )}
             </button>
           </div>
-          <div class="input-group" style={{ marginBottom: 0 }}>
-            <div style={{ position: 'relative', width: '100%' }}>
+          <div class="input-group" style={{ marginBottom: '8px' }}>
+            <div style={{ position: 'relative', flex: 1 }}>
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style={{ position: 'absolute', left: '12px', top: '14px', color: '#8b949e' }}><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
               <input
                 id="browser-input"
                 onInput={(e) => setBrowserPath(e.currentTarget.value)}
                 placeholder="Custom Chromium binary path (Optional)"
                 value={browserPath}
-                style={{ paddingLeft: '38px' }}
+                style={{ paddingLeft: '38px', width: '100%', boxSizing: 'border-box' }}
               />
             </div>
+            <button
+              type="button"
+              onClick={async () => {
+                try {
+                  const selected = await openDialog({ multiple: false, directory: false });
+                  if (typeof selected === 'string') setBrowserPath(selected);
+                } catch (e) { console.error(e); }
+              }}
+              style={{ padding: '0 16px', background: '#21262d', border: '1px solid #30363d', borderRadius: '6px', color: '#c9d1d9', cursor: 'pointer', flexShrink: 0 }}
+            >
+              Browse
+            </button>
+          </div>
+
+          <div class="input-group" style={{ marginBottom: 0 }}>
+            <div style={{ position: 'relative', flex: 1 }}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style={{ position: 'absolute', left: '12px', top: '14px', color: '#8b949e' }}><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
+              <input
+                id="download-dir-input"
+                onInput={(e) => setDownloadDir(e.currentTarget.value)}
+                placeholder="Custom Download Directory (Optional)"
+                value={downloadDir}
+                style={{ paddingLeft: '38px', width: '100%', boxSizing: 'border-box' }}
+              />
+            </div>
+            <button
+              type="button"
+              onClick={async () => {
+                try {
+                  const selected = await openDialog({ multiple: false, directory: true });
+                  if (typeof selected === 'string') setDownloadDir(selected);
+                } catch (e) { console.error(e); }
+              }}
+              style={{ padding: '0 16px', background: '#21262d', border: '1px solid #30363d', borderRadius: '6px', color: '#c9d1d9', cursor: 'pointer', flexShrink: 0 }}
+            >
+              Browse
+            </button>
           </div>
         </form>
       </div>
