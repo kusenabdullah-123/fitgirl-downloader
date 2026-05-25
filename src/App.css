@@ -28,14 +28,29 @@ body {
   min-height: 100vh;
   background-image: radial-gradient(circle at top right, rgba(88, 166, 255, 0.05), transparent 40%),
                     radial-gradient(circle at bottom left, rgba(88, 166, 255, 0.03), transparent 30%);
+  overflow-x: hidden;
 }
 
 .container {
   width: 100%;
+  max-width: 100vw;
   margin: 0 auto;
   padding: 2rem;
   display: flex;
   flex-direction: column;
+  box-sizing: border-box;
+}
+
+@media (max-width: 768px) {
+  .container {
+    padding: 1rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .container {
+    padding: 0.75rem 0.5rem;
+  }
 }
 
 h1.title {
@@ -51,6 +66,20 @@ h1.title {
   animation: fadeInDown 0.8s ease-out;
 }
 
+@media (max-width: 768px) {
+  h1.title {
+    font-size: 2.5rem;
+    margin-bottom: 1.5rem;
+  }
+}
+
+@media (max-width: 480px) {
+  h1.title {
+    font-size: 2rem;
+    margin-bottom: 1rem;
+  }
+}
+
 .glass-panel {
   background: var(--panel-bg);
   backdrop-filter: blur(12px);
@@ -60,6 +89,15 @@ h1.title {
   padding: 24px;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
   transition: transform 0.3s ease, box-shadow 0.3s ease;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+@media (max-width: 640px) {
+  .glass-panel {
+    padding: 16px;
+    border-radius: 12px;
+  }
 }
 
 .glass-panel:hover {
@@ -71,6 +109,14 @@ h1.title {
   gap: 12px;
   margin-bottom: 16px;
   width: 100%;
+  box-sizing: border-box;
+}
+
+@media (max-width: 640px) {
+  .input-group {
+    flex-direction: column;
+    gap: 8px;
+  }
 }
 
 input {
@@ -84,6 +130,15 @@ input {
   font-family: inherit;
   transition: all 0.25s ease;
   box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.1);
+  box-sizing: border-box;
+  min-width: 0;
+}
+
+@media (max-width: 640px) {
+  input {
+    font-size: 16px; /* Prevent zoom on iOS */
+    padding: 14px 16px;
+  }
 }
 
 input:focus {
@@ -107,6 +162,14 @@ input::placeholder {
   cursor: pointer;
   transition: all 0.2s ease;
   box-shadow: 0 4px 12px rgba(46, 160, 67, 0.2);
+}
+
+@media (max-width: 640px) {
+  .btn-primary {
+    padding: 14px 20px;
+    font-size: 16px;
+    min-height: 48px;
+  }
 }
 
 .btn-primary:hover:not(:disabled) {
@@ -139,6 +202,14 @@ input::placeholder {
   transition: all 0.2s ease;
 }
 
+@media (max-width: 640px) {
+  .btn-action {
+    padding: 10px 16px;
+    font-size: 14px;
+    min-height: 40px;
+  }
+}
+
 .btn-action:hover:not(:disabled) {
   background: rgba(31, 111, 235, 0.25);
   border-color: var(--accent-hover);
@@ -165,6 +236,13 @@ input::placeholder {
   align-items: start;
 }
 
+@media (max-width: 968px) {
+  .columns-layout {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+}
+
 @media (max-width: 780px) {
   .columns-layout {
     grid-template-columns: 1fr;
@@ -173,10 +251,23 @@ input::placeholder {
 
 .col-panel {
   /* Fixed height agar layout tidak bergeser/menyusut saat list kosong */
-  min-height: 800px;
-  min-width: 350px;
+  min-height: 600px;
+  min-width: 300px;
   display: flex;
   flex-direction: column;
+}
+
+@media (max-width: 768px) {
+  .col-panel {
+    min-height: 400px;
+    min-width: auto;
+  }
+}
+
+@media (max-width: 480px) {
+  .col-panel {
+    min-height: 300px;
+  }
 }
 
 /* Link yang sudah ada di saved list: subtle indicator */
@@ -211,6 +302,13 @@ input::placeholder {
   transition: all 0.2s ease;
   flex-shrink: 0;
   font-family: inherit;
+}
+
+@media (max-width: 640px) {
+  .btn-remove {
+    width: 32px;
+    height: 32px;
+  }
 }
 
 .btn-remove:hover:not(:disabled) {
@@ -265,12 +363,25 @@ h2 {
 
 .links-container {
   flex: 1;           /* Isi sisa ruang kolom agar kolom tidak mengecil */
-  max-height: 800px;
+  max-height: 600px;
   overflow-y: auto;
   padding-right: 8px;
   display: flex;
   flex-direction: column;
   gap: 12px;
+}
+
+@media (max-width: 768px) {
+  .links-container {
+    max-height: 400px;
+  }
+}
+
+@media (max-width: 480px) {
+  .links-container {
+    max-height: 300px;
+    gap: 8px;
+  }
 }
 
 /* Custom Scrollbar */
@@ -293,9 +404,13 @@ h2 {
   text-decoration: none;
   font-size: 0.95rem;
   font-weight: 500;
-  word-break: break-all;
+  word-break: break-word;
+  overflow-wrap: break-word;
+  hyphens: auto;
   margin-right: 16px;
   transition: color 0.2s ease;
+  min-width: 0;
+  flex: 1;
 }
 
 .link-text:hover {
@@ -371,6 +486,14 @@ h2 {
   margin-bottom: 12px;
 }
 
+@media (max-width: 640px) {
+  .list-toolbar {
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 8px 2px 10px;
+  }
+}
+
 .check-all-label {
   display: flex;
   align-items: center;
@@ -411,6 +534,16 @@ h2 {
   border: 1px solid rgba(48, 54, 61, 0.5);
   border-radius: 12px;
   transition: all 0.2s ease;
+  box-sizing: border-box;
+  min-width: 0;
+}
+
+@media (max-width: 640px) {
+  .link-item {
+    padding: 10px 12px;
+    gap: 8px;
+    border-radius: 8px;
+  }
 }
 
 .link-item:hover {

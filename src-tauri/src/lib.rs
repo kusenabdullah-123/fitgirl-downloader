@@ -544,6 +544,9 @@ async fn process_link(app_handle: tauri::AppHandle, url: String, browser_path: O
             }
             if file_name.is_empty() { file_name = "fitgirl_download.rar".to_string(); }
 
+            // Sanitasi nama file agar aman di Windows (menghindari os error 123)
+            file_name = file_name.replace(|c| ['<', '>', ':', '"', '/', '\\', '|', '?', '*'].contains(&c), "_");
+
             let dest = dl_dir.join(&file_name);
 
 
